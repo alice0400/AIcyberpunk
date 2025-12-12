@@ -1,63 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Battery, Zap, ShoppingCart, Activity, AlertTriangle, Hammer, Cpu, Map, Skull, ShieldAlert, Bot, Sun, Trash2, Building2, Flame, RefreshCcw, Crosshair, LogOut, X, CheckCircle2, Wallet, ArrowDownLeft, ArrowUpRight, Copy, ExternalLink, Plus, Coins, Scroll, Factory, Diamond, Hexagon, Wrench, Heart, Percent, Globe, Filter, ReplyAll, Loader2 } from 'lucide-react';
 
-/**
- * --------------------------------------------------------------------------
- * 🟢 PRODUCTION IMPORTS (Uncomment when deploying to real environment)
- * --------------------------------------------------------------------------
- */
-// import { TonConnectButton, useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
-// import { beginCell, toNano } from '@ton/core';
-
-/**
- * --------------------------------------------------------------------------
- * 🟡 PREVIEW SIMULATION LAYERS (Remove this block in production)
- * --------------------------------------------------------------------------
- */
-// Mock Address
-const useTonAddress = () => "EQC...TEST_USER";
-
-// Mock TonConnect Hook
-const useTonConnectUI = () => {
-  return [{
-    sendTransaction: async (tx) => {
-      console.log("------------------------------------------------");
-      console.log("🚀 SIMULATED TRANSACTION SENT");
-      console.log("To:", tx.messages[0].address);
-      console.log("Amount (Nano):", tx.messages[0].amount);
-      console.log("Payload:", tx.messages[0].payload);
-      console.log("------------------------------------------------");
-      await new Promise(r => setTimeout(r, 1500)); // Fake delay
-      return true;
-    }
-  }];
-};
-
-// Mock TonConnect Button
-const TonConnectButton = () => (
-  <button className="bg-[#0098EA] text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-2">
-    <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-    <span>Connect Wallet (Simulated)</span>
-  </button>
-);
-
-// Mock @ton/core Helper functions
-const toNano = (val) => Number(val) * 1000000000;
-const beginCell = () => {
-    const data = [];
-    return {
-        storeUint: (val, bits) => { data.push(`Uint(${val},${bits})`); return beginCell(); }, // Recursive mock to allow chaining
-        endCell: () => ({
-            toBoc: () => ({
-                toString: () => `[BOC_DATA:${data.join('-')}]`
-            })
-        })
-    };
-};
+// ✅ IMPORTS ของจริง (สำหรับ Production)
+import { TonConnectUIProvider, TonConnectButton, useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
+import { beginCell, toNano } from '@ton/core';
 
 // --- ⚙️ CONFIGURATION ---
 const CONTRACT_ADDRESS = "kQAIYlrr3UiMJ9fqI-B4j2nJdiiD7WzyaNL1MX_wiONc4F6o"; 
-const EXPLORER_URL = `https://testnet.tonscan.org/address/${CONTRACT_ADDRESS}`;
+// ⚠️ URL Manifest ของคุณบน Vercel
+const MANIFEST_URL = "https://ai-cyberpunk-theta.vercel.app/tonconnect-manifest.json";
 
 // Game Balancing Config
 const GAME_CONFIG = {
@@ -79,7 +30,7 @@ const OP_CODES = {
     EnterOmega: 5
 };
 
-// --- TRANSLATIONS (Same as before) ---
+// --- TRANSLATIONS ---
 const TRANSLATIONS = {
     en: { hangar: "HANGAR", zones: "ZONES", workshop: "WORKSHOP", market: "MARKET", commander: "COMMANDER", totalPower: "TOTAL POWER", recruit: "RECRUIT", deploy: "DEPLOY", recall: "RECALL", repair: "REPAIR", ready: "READY", working: "WORKING", broken: "BROKEN", recallAll: "RECALL ALL", filter: "FILTER", all: "ALL", deposit: "DEPOSIT", withdraw: "WITHDRAW", available: "AVAILABLE BALANCE", inventory: "INVENTORY", craft: "CRAFT UNIT", crafting: "MECH FACTORY", craftDesc: "Forge the ultimate Commander Unit", blueprints: "Blueprints", scrap: "Scrap", insufficient: "Insufficient Resources", successCraft: "Crafting Complete!", zoneReward: "EARN", zoneDanger: "DANGER", death: "DEATH", hpLoss: "HP/s", jackpot: "JACKPOT", confirmBatch: "CONFIRM BATCH", abort: "ABORT", batchTitle: "BATCH DEPLOY", batchDesc: "Sending units to Zone Omega.", shopTitle: "BLACK MARKET", shopDesc: "Smuggled mining droids", singleDrop: "SINGLE DROP", warlordBundle: "WARLORD BUNDLE", guaranteed: "GUARANTEED RARE +", selected: "SELECTED", noUnits: "NO UNITS SELECTED", clear: "Clear", legendaryEffect: "RANDOM GLOBAL EFFECT", effect: "Effect", zoneRecall: "Recall All", activeUnits: "Active Units", connectWallet: "Connect Wallet First", txPending: "Processing Transaction...", txSuccess: "Transaction Sent!", testnetMode: "TESTNET MODE" },
     th: { hangar: "โรงเก็บ", zones: "เขตแดน", workshop: "โรงงาน", market: "ร้านค้า", commander: "ผู้บัญชาการ", totalPower: "พลังรวม", recruit: "จ้างหุ่น", deploy: "ส่งออก", recall: "เรียกกลับ", repair: "ซ่อมแซม", ready: "พร้อม", working: "กำลังขุด", broken: "พังเสียหาย", recallAll: "เรียกกลับหมด", filter: "ตัวกรอง", all: "ทั้งหมด", deposit: "ฝากเหรียญ", withdraw: "ถอนเหรียญ", available: "ยอดเงินคงเหลือ", inventory: "กระเป๋าของ", craft: "สร้างหุ่น", crafting: "โรงงานจักรกล", craftDesc: "สร้างหุ่นรบระดับตำนาน", blueprints: "แบบแปลน", scrap: "เศษเหล็ก", insufficient: "ทรัพยากรไม่พอ", successCraft: "สร้างสำเร็จ!", zoneReward: "รางวัล", zoneDanger: "อันตราย", death: "ตายแน่นอน", hpLoss: "HP/วิ", jackpot: "แจ็คพอต", confirmBatch: "ยืนยันส่งหมู่", abort: "ยกเลิก", batchTitle: "ส่งกองทัพ", batchDesc: "กำลังส่งหุ่นไปเขต Omega", shopTitle: "ตลาดมืด", shopDesc: "หุ่นยนต์เถื่อนจากโลกเบื้องบน", singleDrop: "กล่องเดี่ยว", warlordBundle: "กล่องสงคราม", guaranteed: "การันตี RARE+", selected: "เลือกแล้ว", noUnits: "ยังไม่เลือก", clear: "ล้าง", legendaryEffect: "สุ่มเอฟเฟคทีม", effect: "เอฟเฟค", zoneRecall: "เรียกกลับทั้งโซน", activeUnits: "หุ่นยนต์ที่มี", connectWallet: "กรุณาเชื่อมต่อกระเป๋า", txPending: "กำลังทำรายการ...", txSuccess: "ส่งคำสั่งเรียบร้อย!", testnetMode: "โหมดทดสอบ (TESTNET)" }
@@ -192,15 +143,14 @@ const WalletModal = ({ onClose, balances, onDeposit, onWithdraw, t }) => {
     );
 };
 
-// --- MAIN APP ---
-const App = () => {
+// --- GAME LOGIC COMPONENT (Inner) ---
+const GameInterface = () => {
   const [lang, setLang] = useState('en'); 
   const [activeTab, setActiveTab] = useState('hangar');
   const [balance, setBalance] = useState(100.00);
   const [scrap, setScrap] = useState(2500); 
   const [usdt, setUsdt] = useState(0.00); 
   const [blueprints, setBlueprints] = useState(100000); 
-  const [poolSize, setPoolSize] = useState(15420.50);
   const [rates, setRates] = useState({ ton: 0, scrap: 0, usdt: 0, blueprint: 0 }); 
   const [showOmegaModal, setShowOmegaModal] = useState(false); 
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -232,7 +182,6 @@ const App = () => {
       return acc;
   }, { repairDiscount: 0, powerBoost: 0, hpBoost: 0 });
 
-  const finalRepairDiscount = Math.min(globalModifiers.repairDiscount, 90) / 100;
   const finalPowerMultiplier = 1 + (globalModifiers.powerBoost / 100);
   const finalHpMultiplier = 1 + (globalModifiers.hpBoost / 100);
 
@@ -285,7 +234,7 @@ const App = () => {
 
   const addLog = (msg) => setLogs(p => [...p.slice(-4), `> ${msg}`]);
 
-  // --- BLOCKCHAIN TRANSACTIONS (Build Real Payloads) ---
+  // --- BLOCKCHAIN TRANSACTIONS ---
   const sendTransaction = async (opCode, amount = 0, payloadData = null) => {
       if (!userAddress) {
           addLog(t('connectWallet'));
@@ -294,18 +243,14 @@ const App = () => {
       setTxPending(true);
       
       try {
-          // --- BUILD PAYLOAD (BODY) USING @ton/core ---
-          // OpCode (32bit) + QueryId (64bit) + Data
-          
-          // NOTE: In the simulated version, beginCell() is a mock.
-          // In production, this generates a real cell.
+          const queryId = Math.floor(Date.now() / 1000);
           let bodyBuilder = beginCell()
               .storeUint(opCode, 32)
-              .storeUint(0, 64); // QueryId = 0
+              .storeUint(queryId, 64);
 
           if (payloadData) {
               if (opCode === OP_CODES.BuyGacha) {
-                  bodyBuilder.storeUint(payloadData.amount, 32); // Send amount (1 or 20)
+                  bodyBuilder.storeUint(payloadData.amount, 32); 
               } else if (opCode === OP_CODES.Dispatch) {
                   bodyBuilder.storeUint(payloadData.robotId, 32);
                   bodyBuilder.storeUint(payloadData.zoneId, 8);
@@ -320,7 +265,7 @@ const App = () => {
               validUntil: Math.floor(Date.now() / 1000) + 60,
               messages: [{
                   address: CONTRACT_ADDRESS,
-                  amount: toNano(amount.toString()),
+                  amount: toNano(amount.toString()).toString(), // Important: Convert to string
                   payload: body.toBoc().toString('base64')
               }]
           };
@@ -332,7 +277,7 @@ const App = () => {
       } catch (e) {
           console.error(e);
           setTxPending(false);
-          addLog("Transaction Failed");
+          addLog("Transaction Failed / Cancelled");
           return false;
       }
   };
@@ -346,16 +291,7 @@ const App = () => {
       
       if (success) {
           setBalance(p => p - cost);
-          const newBots = [];
-          for(let i=0; i<quantity; i++) {
-               const roll = Math.random() * 100;
-               let tier = 'Common', hp = 1000, pwr = 100;
-               if (roll > 95) { tier = 'Epic'; hp = 3500; pwr = 2000; }
-               else if (roll > 80) { tier = 'Rare'; hp = 1800; pwr = 350; }
-               newBots.push({ id: Date.now() + i, name: `${tier}-Bot`, tier, power: pwr, hp, maxHp: hp, status: 'Idle', zone: null, visualSeed: Math.random() });
-          }
-          setRobots(p => [...p, ...newBots]);
-          addLog(`${t('recruit')} ${quantity} units`);
+          addLog(`${t('recruit')} ${quantity} units (Pending Blockchain Confirmation)`);
       }
   };
 
@@ -363,13 +299,8 @@ const App = () => {
       if (selectedRobotIds.length === 0) return;
       if (zoneId === 'OMEGA') { setShowOmegaModal(true); return; }
       
-      // Batch Dispatch: Loop through selected IDs and send transactions (or use a batch contract method if available)
-      // For Demo: We send 1 transaction for the FIRST robot only to show proof of concept
-      // In production: You need a Multi-Send Contract or loop in UI (bad UX)
-      
       const firstRobotId = selectedRobotIds[0];
       const zoneConfig = ZONE_CONFIG[zoneId];
-      // Convert Zone Letter to ID (A=1, B=2...)
       
       const success = await sendTransaction(OP_CODES.Dispatch, 0.05, { robotId: firstRobotId, zoneId: zoneConfig.id }); 
       
@@ -386,19 +317,16 @@ const App = () => {
        const success = await sendTransaction(OP_CODES.EnterOmega, 0.5, { robotId: firstRobotId });
        if(success) {
            setShowOmegaModal(false);
-           // ... Omega Logic ...
            addLog("Omega Entry Confirmed");
            setSelectedRobotIds([]);
        }
   };
 
-  // Local Handlers (Off-chain for demo speed)
   const toggleSelect = (id) => setSelectedRobotIds(prev => prev.includes(id) ? prev.filter(rid => rid !== id) : [...prev, id]);
-  const clearSelection = () => setSelectedRobotIds([]);
   const handleRecallAll = () => { setRobots(p => p.map(b => b.status === 'Farming' ? { ...b, status: 'Idle', zone: null } : b)); addLog(t('recallAll')); };
   
   const handleRecall = async (id) => { 
-      // await sendTransaction(OP_CODES.Recall, 0.01, { robotId: id }); // Uncomment for real
+      // await sendTransaction(OP_CODES.Recall, 0.01, { robotId: id }); 
       setRobots(p => p.map(b => b.id === id ? { ...b, status: 'Idle', zone: null } : b)); 
       addLog(t('recall'));
   };
@@ -406,7 +334,6 @@ const App = () => {
   const handleRecallZone = (zoneId) => { setRobots(prev => prev.map(bot => (bot.status === 'Farming' && bot.zone === zoneId) ? { ...bot, status: 'Idle', zone: null } : bot)); addLog(`Recalled Zone ${zoneId}`); };
   
   const handleRepair = async (id) => { 
-      // await sendTransaction(OP_CODES.Repair, 0.01, { robotId: id }); // Uncomment for real
       const bot = robots.find(r => r.id === id);
       if(scrap >= 100) { setScrap(s => s - 100); setRobots(p => p.map(b => b.id === id ? { ...b, hp: b.maxHp, status: 'Idle', zone: null } : b)); }
   };
@@ -418,11 +345,8 @@ const App = () => {
           setActiveTab('hangar');
       }
   };
-
-  // Placeholder functions for modal (not fully implemented in simulation)
   const handleDeposit = () => {};
   const handleWithdraw = () => {};
-
 
   const Scanline = () => <div className="pointer-events-none fixed inset-0 z-50 h-full w-full bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%]"/>;
   const filteredRobots = filterTier === 'All' ? robots : robots.filter(r => r.tier === filterTier);
@@ -529,6 +453,15 @@ const App = () => {
       
       {showWalletModal && <WalletModal onClose={() => setShowWalletModal(false)} balances={{ ton: balance, usdt: usdt, scrap: scrap, 'bprint': blueprints }} onDeposit={handleDeposit} onWithdraw={handleWithdraw} t={t} />}
     </div>
+  );
+};
+
+// --- ROOT WRAPPER ---
+const App = () => {
+  return (
+    <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
+      <GameInterface />
+    </TonConnectUIProvider>
   );
 };
 
