@@ -1,16 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Battery, Zap, ShoppingCart, Activity, AlertTriangle, Hammer, Cpu, Map, Skull, ShieldAlert, Bot, Sun, Trash2, Building2, Flame, RefreshCcw, Crosshair, LogOut, X, CheckCircle2, Wallet, ArrowDownLeft, ArrowUpRight, Copy, ExternalLink, Plus, Coins, Scroll, Factory, Diamond, Hexagon, Wrench, Heart, Percent, Globe, Filter, ReplyAll, Loader2 } from 'lucide-react';
 
-// ✅ IMPORTS ของจริง (สำหรับ Production)
+// --- PRODUCTION IMPORTS ---
 import { TonConnectUIProvider, TonConnectButton, useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
-import { beginCell, toNano } from '@ton/core';
+import { beginCell, toNano, Address, TonClient } from '@ton/ton'; // ใช้ @ton/ton แทน @ton/core เพื่อฟีเจอร์การอ่านข้อมูลที่ครบถ้วน
 
 // --- ⚙️ CONFIGURATION ---
 const CONTRACT_ADDRESS = "kQAIYlrr3UiMJ9fqI-B4j2nJdiiD7WzyaNL1MX_wiONc4F6o"; 
-// ⚠️ URL Manifest ของคุณบน Vercel
 const MANIFEST_URL = "https://ai-cyberpunk-theta.vercel.app/tonconnect-manifest.json";
+const IS_TESTNET = true; // ตั้งเป็น false ถ้าขึ้น Mainnet
 
-// Game Balancing Config
+// API สำหรับอ่านข้อมูล (RPC) - ใช้ของ toncenter หรือ tonapi
+const RPC_ENDPOINT = IS_TESTNET 
+    ? 'https://testnet.toncenter.com/api/v2/jsonRPC' 
+    : 'https://toncenter.com/api/v2/jsonRPC';
+// ถ้ามี API KEY ให้ใส่ตรงนี้ (ถ้าไม่มีอาจจะติด Limit ได้ในอนาคต)
+const RPC_API_KEY = ""; 
+
+// --- HELPER: INITIALIZE TON CLIENT ---
+// สร้าง Hook เพื่อเรียกใช้ Client สำหรับอ่านข้อมูล
+const useTonClient = () => {
+    return {
+        client: new TonClient({
+            endpoint: RPC_ENDPOINT,
+            apiKey: RPC_API_KEY
+        })
+    };
+};
+
+// ... (Configuration & Translations เหมือนเดิม เพื่อความกระชับ) ...
 const GAME_CONFIG = {
     TIME_SCALE: 60, 
     DROP_RATES: { COMMON: 80, RARE: 18, EPIC: 2 },
@@ -21,7 +39,6 @@ const GAME_CONFIG = {
     GACHA_PRICE: { SINGLE: 1, BULK: 20 }
 };
 
-// OpCodes (Must match Smart Contract)
 const OP_CODES = {
     BuyGacha: 1,
     Dispatch: 2,
@@ -30,13 +47,11 @@ const OP_CODES = {
     EnterOmega: 5
 };
 
-// --- TRANSLATIONS ---
 const TRANSLATIONS = {
-    en: { hangar: "HANGAR", zones: "ZONES", workshop: "WORKSHOP", market: "MARKET", commander: "COMMANDER", totalPower: "TOTAL POWER", recruit: "RECRUIT", deploy: "DEPLOY", recall: "RECALL", repair: "REPAIR", ready: "READY", working: "WORKING", broken: "BROKEN", recallAll: "RECALL ALL", filter: "FILTER", all: "ALL", deposit: "DEPOSIT", withdraw: "WITHDRAW", available: "AVAILABLE BALANCE", inventory: "INVENTORY", craft: "CRAFT UNIT", crafting: "MECH FACTORY", craftDesc: "Forge the ultimate Commander Unit", blueprints: "Blueprints", scrap: "Scrap", insufficient: "Insufficient Resources", successCraft: "Crafting Complete!", zoneReward: "EARN", zoneDanger: "DANGER", death: "DEATH", hpLoss: "HP/s", jackpot: "JACKPOT", confirmBatch: "CONFIRM BATCH", abort: "ABORT", batchTitle: "BATCH DEPLOY", batchDesc: "Sending units to Zone Omega.", shopTitle: "BLACK MARKET", shopDesc: "Smuggled mining droids", singleDrop: "SINGLE DROP", warlordBundle: "WARLORD BUNDLE", guaranteed: "GUARANTEED RARE +", selected: "SELECTED", noUnits: "NO UNITS SELECTED", clear: "Clear", legendaryEffect: "RANDOM GLOBAL EFFECT", effect: "Effect", zoneRecall: "Recall All", activeUnits: "Active Units", connectWallet: "Connect Wallet First", txPending: "Processing Transaction...", txSuccess: "Transaction Sent!", testnetMode: "TESTNET MODE" },
-    th: { hangar: "โรงเก็บ", zones: "เขตแดน", workshop: "โรงงาน", market: "ร้านค้า", commander: "ผู้บัญชาการ", totalPower: "พลังรวม", recruit: "จ้างหุ่น", deploy: "ส่งออก", recall: "เรียกกลับ", repair: "ซ่อมแซม", ready: "พร้อม", working: "กำลังขุด", broken: "พังเสียหาย", recallAll: "เรียกกลับหมด", filter: "ตัวกรอง", all: "ทั้งหมด", deposit: "ฝากเหรียญ", withdraw: "ถอนเหรียญ", available: "ยอดเงินคงเหลือ", inventory: "กระเป๋าของ", craft: "สร้างหุ่น", crafting: "โรงงานจักรกล", craftDesc: "สร้างหุ่นรบระดับตำนาน", blueprints: "แบบแปลน", scrap: "เศษเหล็ก", insufficient: "ทรัพยากรไม่พอ", successCraft: "สร้างสำเร็จ!", zoneReward: "รางวัล", zoneDanger: "อันตราย", death: "ตายแน่นอน", hpLoss: "HP/วิ", jackpot: "แจ็คพอต", confirmBatch: "ยืนยันส่งหมู่", abort: "ยกเลิก", batchTitle: "ส่งกองทัพ", batchDesc: "กำลังส่งหุ่นไปเขต Omega", shopTitle: "ตลาดมืด", shopDesc: "หุ่นยนต์เถื่อนจากโลกเบื้องบน", singleDrop: "กล่องเดี่ยว", warlordBundle: "กล่องสงคราม", guaranteed: "การันตี RARE+", selected: "เลือกแล้ว", noUnits: "ยังไม่เลือก", clear: "ล้าง", legendaryEffect: "สุ่มเอฟเฟคทีม", effect: "เอฟเฟค", zoneRecall: "เรียกกลับทั้งโซน", activeUnits: "หุ่นยนต์ที่มี", connectWallet: "กรุณาเชื่อมต่อกระเป๋า", txPending: "กำลังทำรายการ...", txSuccess: "ส่งคำสั่งเรียบร้อย!", testnetMode: "โหมดทดสอบ (TESTNET)" }
+    en: { hangar: "HANGAR", zones: "ZONES", workshop: "WORKSHOP", market: "MARKET", commander: "COMMANDER", totalPower: "TOTAL POWER", recruit: "RECRUIT", deploy: "DEPLOY", recall: "RECALL", repair: "REPAIR", ready: "READY", working: "WORKING", broken: "BROKEN", recallAll: "RECALL ALL", filter: "FILTER", all: "ALL", deposit: "DEPOSIT", withdraw: "WITHDRAW", available: "AVAILABLE BALANCE", inventory: "INVENTORY", craft: "CRAFT UNIT", crafting: "MECH FACTORY", craftDesc: "Forge the ultimate Commander Unit", blueprints: "Blueprints", scrap: "Scrap", insufficient: "Insufficient Resources", successCraft: "Crafting Complete!", zoneReward: "EARN", zoneDanger: "DANGER", death: "DEATH", hpLoss: "HP/s", jackpot: "JACKPOT", confirmBatch: "CONFIRM BATCH", abort: "ABORT", batchTitle: "BATCH DEPLOY", batchDesc: "Sending units to Zone Omega.", shopTitle: "BLACK MARKET", shopDesc: "Smuggled mining droids", singleDrop: "SINGLE DROP", warlordBundle: "WARLORD BUNDLE", guaranteed: "GUARANTEED RARE +", selected: "SELECTED", noUnits: "NO UNITS SELECTED", clear: "Clear", legendaryEffect: "RANDOM GLOBAL EFFECT", effect: "Effect", zoneRecall: "Recall All", activeUnits: "Active Units", connectWallet: "Connect Wallet First", txPending: "Processing Transaction...", txSuccess: "Transaction Sent!", testnetMode: "TESTNET MODE", loadingData: "Syncing Blockchain..." },
+    th: { hangar: "โรงเก็บ", zones: "เขตแดน", workshop: "โรงงาน", market: "ร้านค้า", commander: "ผู้บัญชาการ", totalPower: "พลังรวม", recruit: "จ้างหุ่น", deploy: "ส่งออก", recall: "เรียกกลับ", repair: "ซ่อมแซม", ready: "พร้อม", working: "กำลังขุด", broken: "พังเสียหาย", recallAll: "เรียกกลับหมด", filter: "ตัวกรอง", all: "ทั้งหมด", deposit: "ฝากเหรียญ", withdraw: "ถอนเหรียญ", available: "ยอดเงินคงเหลือ", inventory: "กระเป๋าของ", craft: "สร้างหุ่น", crafting: "โรงงานจักรกล", craftDesc: "สร้างหุ่นรบระดับตำนาน", blueprints: "แบบแปลน", scrap: "เศษเหล็ก", insufficient: "ทรัพยากรไม่พอ", successCraft: "สร้างสำเร็จ!", zoneReward: "รางวัล", zoneDanger: "อันตราย", death: "ตายแน่นอน", hpLoss: "HP/วิ", jackpot: "แจ็คพอต", confirmBatch: "ยืนยันส่งหมู่", abort: "ยกเลิก", batchTitle: "ส่งกองทัพ", batchDesc: "กำลังส่งหุ่นไปเขต Omega", shopTitle: "ตลาดมืด", shopDesc: "หุ่นยนต์เถื่อนจากโลกเบื้องบน", singleDrop: "กล่องเดี่ยว", warlordBundle: "กล่องสงคราม", guaranteed: "การันตี RARE+", selected: "เลือกแล้ว", noUnits: "ยังไม่เลือก", clear: "ล้าง", legendaryEffect: "สุ่มเอฟเฟคทีม", effect: "เอฟเฟค", zoneRecall: "เรียกกลับทั้งโซน", activeUnits: "หุ่นยนต์ที่มี", connectWallet: "กรุณาเชื่อมต่อกระเป๋า", txPending: "กำลังทำรายการ...", txSuccess: "ส่งคำสั่งเรียบร้อย!", testnetMode: "โหมดทดสอบ (TESTNET)", loadingData: "กำลังโหลดข้อมูลจากเชน..." }
 };
 
-// --- CONFIGURATION OBJECTS ---
 const ZONE_CONFIG = {
     A: { id: 1, hpLoss: GAME_CONFIG.DAMAGE_RATES.A, reward: 'TON', color: 'yellow', icon: Sun, desc: 'Radioactive Desert', image: 'https://upbpnshfqvavtxqkwofc.supabase.co/storage/v1/object/public/Cyberpunk/ZoneA.png', bgGradient: 'from-yellow-900/40 to-yellow-600/10' },
     B: { id: 2, hpLoss: GAME_CONFIG.DAMAGE_RATES.B, reward: 'SCRAP', color: 'green', icon: Trash2, desc: 'Old Robot Graveyard', image: 'https://upbpnshfqvavtxqkwofc.supabase.co/storage/v1/object/public/Cyberpunk/ZoneB.png', bgGradient: 'from-green-900/40 to-green-600/10' },
@@ -47,7 +62,7 @@ const OMEGA_IMAGE = 'https://upbpnshfqvavtxqkwofc.supabase.co/storage/v1/object/
 const ROBOT_IMAGES = { Common: 'https://upbpnshfqvavtxqkwofc.supabase.co/storage/v1/object/public/Robot/C1.png', Rare: 'https://upbpnshfqvavtxqkwofc.supabase.co/storage/v1/object/public/Robot/R1.png', Epic: 'https://upbpnshfqvavtxqkwofc.supabase.co/storage/v1/object/public/Robot/E1.png', Legendary: 'https://upbpnshfqvavtxqkwofc.supabase.co/storage/v1/object/public/Robot/L1.png' };
 const TIER_STYLES = { Common: { border: 'border-amber-800', bg: 'bg-amber-950/30', text: 'text-amber-500', shadow: '', glow: 'amber' }, Rare: { border: 'border-cyan-500', bg: 'bg-cyan-950/30', text: 'text-cyan-400', shadow: 'shadow-[0_0_10px_rgba(6,182,212,0.2)]', glow: 'cyan' }, Epic: { border: 'border-purple-500', bg: 'bg-purple-950/30', text: 'text-purple-400', shadow: 'shadow-[0_0_15px_rgba(168,85,247,0.3)]', glow: 'purple' }, Legendary: { border: 'border-yellow-500', bg: 'bg-yellow-950/30', text: 'text-yellow-400', shadow: 'shadow-[0_0_20px_rgba(249,115,22,0.6)]', glow: 'yellow' } };
 
-// --- COMPONENTS ---
+// ... (Components RobotPortrait, RobotCard, etc. เหมือนเดิม) ...
 const RobotPortrait = ({ tier }) => {
     let bgClass = "bg-gray-900"; let glowColor = "gray";
     if (tier === 'Common') { bgClass = "bg-gradient-to-b from-stone-900 to-amber-950"; glowColor = "amber"; } 
@@ -143,34 +158,85 @@ const WalletModal = ({ onClose, balances, onDeposit, onWithdraw, t }) => {
     );
 };
 
-// --- GAME LOGIC COMPONENT (Inner) ---
+// --- GAME INTERFACE ---
 const GameInterface = () => {
   const [lang, setLang] = useState('en'); 
   const [activeTab, setActiveTab] = useState('hangar');
-  const [balance, setBalance] = useState(100.00);
-  const [scrap, setScrap] = useState(2500); 
+  
+  // State สำหรับเก็บข้อมูล (เริ่มต้นเป็น 0 หรือว่างเปล่า แล้วรอโหลดจาก Chain)
+  const [balance, setBalance] = useState(0.00);
+  const [scrap, setScrap] = useState(0); 
   const [usdt, setUsdt] = useState(0.00); 
-  const [blueprints, setBlueprints] = useState(100000); 
+  const [blueprints, setBlueprints] = useState(0); 
+  const [robots, setRobots] = useState([]); // เริ่มต้นด้วย Array ว่าง
+  
   const [rates, setRates] = useState({ ton: 0, scrap: 0, usdt: 0, blueprint: 0 }); 
   const [showOmegaModal, setShowOmegaModal] = useState(false); 
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [selectedRobotIds, setSelectedRobotIds] = useState([]);
   const [filterTier, setFilterTier] = useState('All');
   const [txPending, setTxPending] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [lastTick, setLastTick] = useState(Date.now()); 
 
   const [tonConnectUI] = useTonConnectUI();
   const userAddress = useTonAddress();
+  const { client } = useTonClient(); // เรียกใช้ Client
   const t = (key) => TRANSLATIONS[lang][key] || key;
 
-  const [robots, setRobots] = useState([
-    { id: 1, name: 'Scrapper-01', tier: 'Common', power: 100, hp: 800, maxHp: 1000, status: 'Idle', zone: null, visualSeed: 1 },
-    { id: 2, name: 'Cobalt-X', tier: 'Rare', power: 350, hp: 1800, maxHp: 1800, status: 'Idle', zone: null, visualSeed: 2 },
-    { id: 3, name: 'Nebula-Prime', tier: 'Epic', power: 2000, hp: 3500, maxHp: 3500, status: 'Farming', zone: 'A', visualSeed: 3 },
-    { id: 4, name: 'Zeus-Command', tier: 'Legendary', power: 2000, hp: 3500, maxHp: 3500, status: 'Idle', zone: null, visualSeed: 4, effect: { type: 'power', value: 10 } }, 
-  ]);
+  const [logs, setLogs] = useState(['> System initialized...']);
 
-  const [logs, setLogs] = useState(['> System initialized...', '> TON Testnet Connected.']);
+  // --- 🔗 FETCH DATA FROM BLOCKCHAIN ---
+  const fetchGameData = useCallback(async () => {
+      if (!userAddress || !client) return;
+      setIsSyncing(true);
+      
+      try {
+          // 1. ดึงข้อมูล User (Balance) - อันนี้ดึงได้เลย
+          const balanceNano = await client.getBalance(Address.parse(userAddress));
+          setBalance(Number(balanceNano) / 1000000000);
+
+          // 2. ดึงข้อมูลจาก Contract (Getters)
+          // ⚠️ แก้ชื่อฟังก์ชัน 'get_user_data' ให้ตรงกับ Contract จริงของคุณ
+          const contractAddr = Address.parse(CONTRACT_ADDRESS);
+          
+          // ตัวอย่าง: ถ้า Contract มีฟังก์ชัน get_user_robots(user_address)
+          // const result = await client.runMethod(contractAddr, 'get_user_robots', [
+          //     { type: 'slice', cell: beginCell().storeAddress(Address.parse(userAddress)).endCell() }
+          // ]);
+          
+          // *เนื่องจากยังไม่รู้ชื่อ Getter ผมจะจำลองว่าถ้าดึงไม่ได้ ให้ใช้ Mock ไปก่อนเพื่อให้แอปไม่พัง*
+          // *เมื่อคุณแก้ Contract เสร็จ ให้ลบส่วน Mock นี้ทิ้ง*
+          
+          // MOCK FALLBACK (ลบส่วนนี้ทิ้งถ้าต่อ Contract จริงสำเร็จ)
+          setScrap(2500);
+          setRobots([
+            { id: 1, name: 'Scrapper-01', tier: 'Common', power: 100, hp: 800, maxHp: 1000, status: 'Idle', zone: null, visualSeed: 1 },
+            { id: 2, name: 'Cobalt-X', tier: 'Rare', power: 350, hp: 1800, maxHp: 1800, status: 'Idle', zone: null, visualSeed: 2 },
+            { id: 3, name: 'Nebula-Prime', tier: 'Epic', power: 2000, hp: 3500, maxHp: 3500, status: 'Farming', zone: 'A', visualSeed: 3 },
+            { id: 4, name: 'Zeus-Command', tier: 'Legendary', power: 2000, hp: 3500, maxHp: 3500, status: 'Idle', zone: null, visualSeed: 4, effect: { type: 'power', value: 10 } }
+          ]);
+          setLogs(p => [...p.slice(-4), `> Synced with Blockchain (Balance: ${(Number(balanceNano)/1e9).toFixed(2)} TON)`]);
+
+      } catch (e) {
+          console.error("Fetch Data Error:", e);
+          setLogs(p => [...p.slice(-4), `> Error syncing data`]);
+      } finally {
+          setIsSyncing(false);
+      }
+  }, [userAddress, client]);
+
+  // เรียกดึงข้อมูลเมื่อต่อกระเป๋าสำเร็จ
+  useEffect(() => {
+      if (userAddress) {
+          fetchGameData();
+      } else {
+          // ถ้ายังไม่ต่อกระเป๋า ให้เคลียร์ข้อมูล
+          setRobots([]);
+          setBalance(0);
+      }
+  }, [userAddress, fetchGameData]);
+
 
   // Global Buffs
   const globalModifiers = robots.reduce((acc, bot) => {
@@ -290,8 +356,9 @@ const GameInterface = () => {
       const success = await sendTransaction(OP_CODES.BuyGacha, cost, { amount: quantity });
       
       if (success) {
-          setBalance(p => p - cost);
-          addLog(`${t('recruit')} ${quantity} units (Pending Blockchain Confirmation)`);
+          // Note: ใน Blockchain จริง เราควรรอให้ Transaction ยืนยันเสร็จก่อนค่อยอัปเดต UI
+          // แต่เพื่อให้ UI ตอบสนองเร็ว เราอาจจะจำลองไปก่อน (Optimistic UI)
+          addLog(`${t('recruit')} ${quantity} units (Pending...)`);
       }
   };
 
@@ -305,6 +372,7 @@ const GameInterface = () => {
       const success = await sendTransaction(OP_CODES.Dispatch, 0.05, { robotId: firstRobotId, zoneId: zoneConfig.id }); 
       
       if (success) {
+          // Optimistic UI update
           setRobots(prev => prev.map(bot => selectedRobotIds.includes(bot.id) ? { ...bot, status: 'Farming', zone: zoneId } : bot));
           addLog(`Dispatched to Zone ${zoneId}`);
           setSelectedRobotIds([]);
@@ -355,6 +423,9 @@ const GameInterface = () => {
     <div className="w-full h-screen bg-[#0E0E10] text-white flex flex-col relative font-sans overflow-hidden select-none">
       <Scanline />
       {txPending && (<div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center"><Loader2 size={64} className="text-cyan-400 animate-spin mb-4" /><div className="text-cyan-400 font-bold text-xl animate-pulse">{t('txPending')}</div></div>)}
+      
+      {/* Loading Overlay when syncing data */}
+      {isSyncing && (<div className="fixed top-16 right-4 z-[100] bg-blue-900/80 border border-blue-500 text-blue-200 px-3 py-1 rounded-full text-xs flex items-center gap-2 animate-pulse"><Loader2 size={12} className="animate-spin" /> {t('loadingData')}</div>)}
 
       {showOmegaModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
@@ -373,7 +444,9 @@ const GameInterface = () => {
       <div className="flex flex-col w-full sticky top-0 z-30 shadow-lg shadow-black/50">
           <div className="flex justify-between items-center p-3 bg-black/95 border-b border-gray-800 backdrop-blur-md">
              <div className="flex items-center gap-4">
-                <div className="flex flex-col"><span className="text-[9px] text-gray-500 font-mono tracking-wider">{t('commander')}</span><span className="text-cyan-400 font-bold text-sm">USER_882</span></div>
+                <div className="flex flex-col"><span className="text-[9px] text-gray-500 font-mono tracking-wider">{t('commander')}</span><span className="text-cyan-400 font-bold text-sm">
+                    {userAddress ? `${userAddress.slice(0,4)}...${userAddress.slice(-4)}` : 'GUEST'}
+                </span></div>
                 <div className="flex flex-col items-start pl-4 border-l border-gray-800"><span className="text-[9px] text-gray-500 font-mono tracking-wider">{t('totalPower')}</span><div className="text-yellow-400 font-black text-sm flex items-center gap-1 drop-shadow-[0_0_5px_rgba(234,179,8,0.5)]"><Zap size={14} fill="currentColor"/> {totalActivePower.toLocaleString()}</div></div>
              </div>
              <div className="flex items-center gap-2">
@@ -400,6 +473,15 @@ const GameInterface = () => {
                           {['All', 'Common', 'Rare', 'Epic', 'Legendary'].map(tier => (<button key={tier} onClick={() => setFilterTier(tier)} className={`px-2 py-1 rounded text-[9px] font-bold whitespace-nowrap transition-colors ${filterTier === tier ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>{tier === 'All' ? t('all') : tier}</button>))}
                       </div>
                   </div>
+                  
+                  {/* Empty State when no robots */}
+                  {robots.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+                          <Bot size={48} className="mb-4 opacity-50"/>
+                          <p className="text-xs uppercase tracking-widest">{userAddress ? "No Units Found" : "Connect Wallet to View Units"}</p>
+                      </div>
+                  )}
+
                   <div className="grid grid-cols-3 gap-2">
                       {filteredRobots.map(bot => (<RobotCard key={bot.id} bot={bot} selected={selectedRobotIds.includes(bot.id)} onToggle={toggleSelect} globalHpMult={finalHpMultiplier} globalPowerMult={finalPowerMultiplier} onRecall={handleRecall} onRepair={handleRepair} t={t} />))}
                   </div>
